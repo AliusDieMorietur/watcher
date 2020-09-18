@@ -6,14 +6,16 @@ const fsp = fs.promises;
 
 class Watcher {
   watchers: Map<string, FSWatcher>;
+  callback: Function | null; 
   dirs: string[];
   files: string[];
-  actions: object;
-  constructor() {
+  events: object;
+  constructor(callback = null) {
     this.watchers = new Map();
+    this.callback = callback;
     this.dirs = [];
     this.files = [];
-    this.actions = {
+    this.events = {
       dir: {
         rename: filePath => {
           if (this.watchers.get(filePath)) {
@@ -35,11 +37,7 @@ class Watcher {
     };
   }
 
-  async init(folderName) {
-    this.watch(folderName);
-  }
-
-  async watch(filePath) {
+  watch(filePath) {
     console.log(filePath);
     const type: string = fs.lstatSync(filePath).isDirectory() ? 'dir' : 'file'; 
     const watcher: FSWatcher = 
@@ -50,13 +48,14 @@ class Watcher {
           `\x1b[32mevent: \x1b[0m${event}`
         );
         const fullPath: string = path.join(filePath, fileName);
-        if (this.actions[type][event]) this.actions[type][event](fullPath);
+        if (this.events[type][event]) this.events[type][event](fullPath);
         console.log(filePath, this.watchers.keys());
+        if (this.callback) this.callback();
       });
     this.watchers.set(filePath, watcher);
     if (type === 'dir') {
       this.dirs.push(filePath);
-      const dir: string[] = await fsp.readdir(filePath);
+      const dir: string[] = fs.readdirSync(filePath);
       for (const fileName of dir) {
         const fullPath: string = path.join(filePath, fileName);
         this.watch(fullPath);
@@ -72,6 +71,7 @@ class Watcher {
   }
 
   closeAll(filePath): void {
+    // Doesn't work for deleted folders
     // const type = fs.lstatSync(filePath).isDirectory() ? 'dir' : 'file'; 
     // if (type === 'dir') {
     //   const watcherKeys = this.watchers.keys();
@@ -92,8 +92,7 @@ class Watcher {
   }
 }
 
-(async() => {
-  const watcher = new Watcher();
-  await watcher.init(__dirname);
-})();
-
+const watcher = new Watcher(() => {
+  console.log('Callback test');
+});
+watcher.watch(__dirname);
